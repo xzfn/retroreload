@@ -22,7 +22,7 @@ import weakref
 import gc
 from importlib import import_module
 from importlib.util import source_from_cache
-from imp import reload
+from importlib import reload
 
 #------------------------------------------------------------------------------
 # Autoreload functionality
@@ -215,8 +215,9 @@ def update_class(old, new):
             except (AttributeError, TypeError):
                 pass # skip non-writable attributes
 
+    # retroreload: do not update old __class__
     # update all instances of class
-    update_instances(old, new)
+    # update_instances(old, new)
 
 
 def update_property(old, new):
@@ -274,7 +275,8 @@ def superreload(module, reload=reload, old_objects=None):
             continue
         key = (module.__name__, name)
         try:
-            old_objects.setdefault(key, []).append(weakref.ref(obj))
+            # retroreload: use strong ref
+            old_objects.setdefault(key, []).append(StrongRef(obj))
         except TypeError:
             pass
 
@@ -313,4 +315,15 @@ def superreload(module, reload=reload, old_objects=None):
         else:
             del old_objects[key]
 
+    # retroreload: use updated old, discard new
+    module.__dict__.update(old_dict)
     return module
+
+
+
+#------------------------------------------------------------------------------
+# retroreload
+#------------------------------------------------------------------------------
+
+def retroreload(module):
+    superreload(module)
