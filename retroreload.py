@@ -325,5 +325,67 @@ def superreload(module, reload=reload, old_objects=None):
 # retroreload
 #------------------------------------------------------------------------------
 
+import time
+
+
+DRY_RUN = False
+
+LAST_RELOAD_TIMES = {}
+
+START_TIME = time.time()
+
+
 def retroreload(module):
-    superreload(module)
+    print('retroreload module: ', module)
+    if not DRY_RUN:
+        superreload(module)
+
+def retroreload_module_name(module_name):
+    module = sys.modules.get(module_name)
+    if module:
+        if is_module_outdated(module, module_name):
+            retroreload(module)
+            LAST_RELOAD_TIMES[module_name] = time.time()
+
+def retroreload_module_names(module_names):
+    for module_name in module_names:
+        retroreload_module_name(module_name)
+
+def absnormpath(path):
+    return os.path.normpath(os.path.abspath(path))
+
+def retroreload_script_folder(script_folder):
+    script_folder = absnormpath(script_folder)
+    reload_module_names = []
+    for module_name, module in sys.modules.items():
+        module_file = getattr(module, '__file__', '')
+        if module_file:
+            module_file = absnormpath(module_file)
+            if module_file.startswith(script_folder):
+                reload_module_names.append(module_name)
+    retroreload_module_names(reload_module_names)
+
+def retroreload_script_folders(script_folders):
+    for script_folder in script_folders:
+        retroreload_script_folder(script_folder)
+
+def is_module_outdated(module, module_name):
+    """
+    The module should be reloaded only if outdated.
+    
+    module file modified time is later than START_TIME and 
+    _retroreload_last_reload_time(if exists)
+    """
+    module_file = getattr(module, '__file__', '')
+    if not module_file:
+        return False
+    modified_time = os.path.getmtime(module_file)
+    if module_name in LAST_RELOAD_TIMES:
+        last_reload_time = LAST_RELOAD_TIMES[module_name]
+        if modified_time > last_reload_time:
+            return True
+        return False
+    else:
+        if modified_time > START_TIME:
+            return True
+        return False
